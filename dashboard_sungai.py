@@ -1,32 +1,9 @@
 from datetime import datetime
 
-import numpy as np
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 
 
-def hitung_luas_penampang(lebar, kedalaman):
-    return lebar * kedalaman
-
-
-def hitung_debit(luas, kecepatan):
-    return luas * kecepatan
-
-
-def hitung_daya(luas, kecepatan, efisiensi=0.35, rho=1000):
-    return 0.5 * rho * luas * (kecepatan**3) * efisiensi
-
-
-def klasifikasi_arus(kecepatan):
-    if kecepatan < 0.5:
-        return "RENDAH", "status-rendah", "Tidak potensial untuk pembangkit listrik"
-    if kecepatan <= 1.5:
-        return "SEDANG", "status-sedang", "Cukup potensial (Pico-Hydro)"
-    return "TINGGI", "status-tinggi", "Sangat potensial (Micro-Hydro)"
-
-
+# ─── Klasifikasi ───────────────────────────────────────────────
 def klasifikasi_suhu(suhu):
     if 20 <= suhu <= 30:
         return "Normal", "kualitas-baik"
@@ -43,89 +20,31 @@ def klasifikasi_tds(tds):
     return "Tercemar", "kualitas-buruk"
 
 
-def buat_grafik_daya(v_saat_ini):
-    v_range = np.linspace(0, 3, 100)
-    luas_referensi = 1.0
-    daya_range = [hitung_daya(luas_referensi, v) for v in v_range]
+# ─── Rekomendasi ───────────────────────────────────────────────
+def buat_rekomendasi(stat_suhu, stat_tds):
+    rekomendasi = []
 
-    fig = go.Figure()
-    fig.add_vrect(x0=0, x1=0.5, fillcolor="#fde8e8", opacity=0.3, line_width=0)
-    fig.add_vrect(x0=0.5, x1=1.5, fillcolor="#fef9e7", opacity=0.3, line_width=0)
-    fig.add_vrect(x0=1.5, x1=3.0, fillcolor="#e8f8f5", opacity=0.3, line_width=0)
-    fig.add_trace(
-        go.Scatter(
-            x=v_range,
-            y=daya_range,
-            mode="lines",
-            line=dict(color="#1a6fa8", width=3),
-            name="Potensi Daya (W)",
-        )
-    )
-    daya_saat_ini = hitung_daya(luas_referensi, v_saat_ini)
-    fig.add_trace(
-        go.Scatter(
-            x=[v_saat_ini],
-            y=[daya_saat_ini],
-            mode="markers",
-            marker=dict(size=14, color="red", symbol="circle"),
-            name=f"Sensor: {v_saat_ini} m/s",
-        )
-    )
-    fig.update_layout(
-        title="Grafik Potensi Daya vs Kecepatan Arus",
-        xaxis_title="Kecepatan Arus (m/s)",
-        yaxis_title="Potensi Daya (Watt)",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        height=380,
-    )
-    fig.update_xaxes(showgrid=True, gridcolor="#ececec")
-    fig.update_yaxes(showgrid=True, gridcolor="#ececec")
-    return fig
+    if stat_suhu == "Terlalu Panas":
+        rekomendasi.append("🌡️ Suhu air terlalu tinggi. Periksa sumber panas di sekitar aliran sungai dan pantau lebih sering.")
+    elif stat_suhu == "Terlalu Dingin":
+        rekomendasi.append("❄️ Suhu air terlalu rendah. Waspadai dampak terhadap ekosistem air.")
+    else:
+        rekomendasi.append("✅ Suhu air dalam batas normal. Tidak diperlukan tindakan khusus.")
+
+    if stat_tds == "Tercemar":
+        rekomendasi.append("🚫 TDS sangat tinggi — air tercemar. Hentikan penggunaan air dan laporkan ke dinas terkait.")
+    elif stat_tds == "Perlu Filter":
+        rekomendasi.append("⚠️ TDS melebihi batas aman. Gunakan filter air sebelum digunakan untuk konsumsi.")
+    else:
+        rekomendasi.append("✅ TDS dalam batas aman. Air layak digunakan dengan pengolahan standar.")
+
+    return rekomendasi
 
 
-def buat_grafik_simulasi(jumlah_data=30):
-    waktu = pd.date_range(end=datetime.now(), periods=jumlah_data, freq="1min")
-    return pd.DataFrame(
-        {
-            "Waktu": waktu,
-            "Arus": np.random.uniform(0.3, 2.5, jumlah_data).round(2),
-            "Suhu": np.random.uniform(22, 32, jumlah_data).round(1),
-            "TDS": np.random.randint(100, 900, jumlah_data).astype(float),
-        }
-    )
-
-
-def buat_gauge(nilai, judul, satuan, min_val, max_val, batas_rendah, batas_tinggi):
-    fig = go.Figure(
-        go.Indicator(
-            mode="gauge+number+delta",
-            value=nilai,
-            title={"text": f"{judul} ({satuan})", "font": {"size": 14}},
-            gauge={
-                "axis": {"range": [min_val, max_val]},
-                "bar": {"color": "#1a6fa8"},
-                "steps": [
-                    {"range": [min_val, batas_rendah], "color": "#fde8e8"},
-                    {"range": [batas_rendah, batas_tinggi], "color": "#fef9e7"},
-                    {"range": [batas_tinggi, max_val], "color": "#e8f8f5"},
-                ],
-                "threshold": {
-                    "line": {"color": "red", "width": 4},
-                    "thickness": 0.75,
-                    "value": nilai,
-                },
-            },
-        )
-    )
-    fig.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
-    return fig
-
-
+# ─── Konfigurasi Halaman ───────────────────────────────────────
 st.set_page_config(
-    page_title="Dashboard Monitoring Sungai IoT",
-    page_icon=":droplet:",
+    page_title="Dashboard Kualitas Air Sungai",
+    page_icon="💧",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -133,212 +52,163 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-        .main-title { font-size: 2rem; font-weight: bold; color: #1a6fa8; text-align: center; }
-        .sub-title { font-size: 1rem; color: #888; text-align: center; margin-bottom: 20px; }
-        .status-box { padding: 15px; border-radius: 10px; text-align: center; font-size: 1.1rem; font-weight: bold; }
-        .status-rendah  { background-color: #fde8e8; color: #c0392b; }
-        .status-sedang  { background-color: #fef9e7; color: #d4ac0d; }
-        .status-tinggi  { background-color: #e8f8f5; color: #1e8449; }
-        .kualitas-baik  { background-color: #e8f8f5; color: #1e8449; border-radius:8px; padding:10px; }
-        .kualitas-sedang{ background-color: #fef9e7; color: #d4ac0d; border-radius:8px; padding:10px; }
-        .kualitas-buruk { background-color: #fde8e8; color: #c0392b; border-radius:8px; padding:10px; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+
+        .main-title {
+            font-size: 2.2rem; font-weight: 700;
+            color: #1a6fa8; text-align: center; margin-bottom: 4px;
+        }
+        .sub-title {
+            font-size: 1rem; color: #888;
+            text-align: center; margin-bottom: 24px;
+        }
+
+        /* Status card */
+        .kualitas-baik   { background:#e8f8f5; color:#1e8449; border-radius:12px; padding:18px 20px; border-left:5px solid #1e8449; }
+        .kualitas-sedang { background:#fef9e7; color:#b7950b; border-radius:12px; padding:18px 20px; border-left:5px solid #d4ac0d; }
+        .kualitas-buruk  { background:#fde8e8; color:#c0392b; border-radius:12px; padding:18px 20px; border-left:5px solid #c0392b; }
+
+        /* Rekomendasi box */
+        .rekomendasi-box {
+            background: #f4f8ff;
+            border: 1px solid #cce0ff;
+            border-radius: 12px;
+            padding: 18px 22px;
+            margin-bottom: 10px;
+            font-size: 0.97rem;
+            line-height: 1.7;
+        }
+        .rekomendasi-judul {
+            font-weight: 700; font-size: 1.05rem;
+            color: #1a6fa8; margin-bottom: 8px;
+        }
+        .badge-baik   { display:inline-block; background:#1e8449; color:#fff; border-radius:20px; padding:2px 14px; font-size:0.85rem; font-weight:600; }
+        .badge-sedang { display:inline-block; background:#d4ac0d; color:#fff; border-radius:20px; padding:2px 14px; font-size:0.85rem; font-weight:600; }
+        .badge-buruk  { display:inline-block; background:#c0392b; color:#fff; border-radius:20px; padding:2px 14px; font-size:0.85rem; font-weight:600; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+# ─── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
     st.image("https://img.icons8.com/color/96/river.png", width=80)
-    st.markdown("## Input Sensor IoT")
+    st.markdown("## 💧 Input Sensor")
     st.markdown("---")
-    st.markdown("### Dimensi Sungai")
-    lebar = st.number_input(
-        "Lebar Sungai (m)", min_value=0.1, max_value=100.0, value=2.0, step=0.1
-    )
-    kedalaman = st.number_input(
-        "Kedalaman Air (m)", min_value=0.1, max_value=50.0, value=1.0, step=0.1
-    )
-    st.markdown("### Data Sensor Aliran")
-    v_sensor = st.slider(
-        "Kecepatan Arus (m/s)", min_value=0.0, max_value=3.0, value=1.2, step=0.01
-    )
-    st.markdown("### Kualitas Air")
     suhu_sensor = st.slider(
-        "Suhu Air (C)", min_value=10.0, max_value=45.0, value=26.0, step=0.1
+        "🌡️ Suhu Air (°C)", min_value=10.0, max_value=45.0, value=26.0, step=0.1
     )
     tds_sensor = st.number_input(
-        "Nilai TDS (ppm)", min_value=0, max_value=5000, value=200
+        "🧪 Nilai TDS (ppm)", min_value=0, max_value=5000, value=200, step=10
     )
     st.markdown("---")
-    st.caption(f"Update: {datetime.now().strftime('%H:%M:%S')}")
+    st.caption(f"⏱️ Update: {datetime.now().strftime('%H:%M:%S')}")
 
-
-luas = hitung_luas_penampang(lebar, kedalaman)
-debit = hitung_debit(luas, v_sensor)
-daya = hitung_daya(luas, v_sensor)
-kat_arus, css_arus, saran_arus = klasifikasi_arus(v_sensor)
+# ─── Logika Status ─────────────────────────────────────────────
 stat_suhu, css_suhu = klasifikasi_suhu(suhu_sensor)
 stat_tds, css_tds = klasifikasi_tds(tds_sensor)
-lampu = int(daya / 10)
 
+if stat_suhu == "Normal" and stat_tds == "Bersih":
+    status_keseluruhan = "BAIK"
+    css_keseluruhan = "kualitas-baik"
+    badge_keseluruhan = "badge-baik"
+    deskripsi_keseluruhan = "Air aman dan berada dalam batas normal."
+elif stat_suhu == "Terlalu Panas" or stat_suhu == "Terlalu Dingin" or stat_tds == "Tercemar":
+    status_keseluruhan = "BURUK"
+    css_keseluruhan = "kualitas-buruk"
+    badge_keseluruhan = "badge-buruk"
+    deskripsi_keseluruhan = "Air tidak aman / tercemar. Diperlukan tindakan segera."
+else:
+    status_keseluruhan = "SEDANG"
+    css_keseluruhan = "kualitas-sedang"
+    badge_keseluruhan = "badge-sedang"
+    deskripsi_keseluruhan = "Air cukup baik namun memerlukan pemantauan atau filtrasi."
+
+rekomendasi_list = buat_rekomendasi(stat_suhu, stat_tds)
+
+# ─── Header ────────────────────────────────────────────────────
 st.markdown(
-    '<p class="main-title">Dashboard Monitoring Potensi Energi Sungai</p>',
+    '<p class="main-title">💧 Dashboard Monitoring Kualitas Air Sungai</p>',
     unsafe_allow_html=True,
 )
 st.markdown(
-    '<p class="sub-title">Sistem IoT Pemantauan Kecepatan Arus, Daya Listrik, dan Kualitas Air</p>',
+    '<p class="sub-title">Sistem IoT — Pemantauan Suhu & TDS secara Real-time</p>',
     unsafe_allow_html=True,
 )
 
-st.markdown("### Ringkasan Data Sensor")
-m1, m2, m3, m4, m5 = st.columns(5)
-m1.metric("Luas Penampang", f"{luas:.2f} m2", f"L:{lebar}m x D:{kedalaman}m")
-m2.metric("Debit Air", f"{debit:.3f} m3/s", "A x v")
-m3.metric("Potensi Daya", f"{daya:.1f} W", "Efisiensi 35%")
-m4.metric("Kecepatan Arus", f"{v_sensor:.2f} m/s", kat_arus)
-m5.metric("Estimasi Lampu LED", f"{lampu} unit", "@10W per lampu")
+# ─── Metrik Ringkasan ──────────────────────────────────────────
+st.markdown("### 📊 Ringkasan Sensor")
+m1, m2, m3 = st.columns(3)
+m1.metric("🌡️ Suhu Air", f"{suhu_sensor:.1f} °C", stat_suhu)
+m2.metric("🧪 TDS", f"{tds_sensor} ppm", stat_tds)
+m3.metric("🏞️ Status Kualitas Air", status_keseluruhan, deskripsi_keseluruhan)
 
 st.markdown("---")
-col_kiri, col_kanan = st.columns([1, 2])
 
-with col_kiri:
-    st.markdown("### Status Klasifikasi Arus")
-    st.markdown(
-        f"""
-        <div class="status-box {css_arus}">
-            KATEGORI ARUS: {kat_arus}<br>
-            <small>{saran_arus}</small>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("#### Tabel Standar Kecepatan")
-    df_standar = pd.DataFrame(
-        {
-            "Kategori": ["Rendah", "Sedang", "Tinggi"],
-            "Kecepatan": ["< 0.5 m/s", "0.5 - 1.5 m/s", "> 1.5 m/s"],
-            "Potensi": ["Tidak Potensial", "Pico-Hydro", "Micro-Hydro"],
-        }
-    )
-    st.dataframe(df_standar, hide_index=True, use_container_width=True)
-
-with col_kanan:
-    st.markdown("### Kurva Potensi Daya vs Kecepatan Arus")
-    st.plotly_chart(buat_grafik_daya(v_sensor), use_container_width=True)
-
-st.markdown("---")
-st.markdown("### Gauge Sensor Real-time")
-g1, g2, g3 = st.columns(3)
-with g1:
-    st.plotly_chart(
-        buat_gauge(v_sensor, "Kecepatan Arus", "m/s", 0, 3, 0.5, 1.5),
-        use_container_width=True,
-    )
-with g2:
-    st.plotly_chart(
-        buat_gauge(suhu_sensor, "Suhu Air", "C", 10, 45, 20, 30),
-        use_container_width=True,
-    )
-with g3:
-    st.plotly_chart(
-        buat_gauge(tds_sensor, "TDS", "ppm", 0, 2000, 500, 1000),
-        use_container_width=True,
-    )
-
-st.markdown("---")
-st.markdown("### Status Kualitas Air")
+# ─── Kartu Status Detail ───────────────────────────────────────
+st.markdown("### 🔍 Detail Status Kualitas Air")
 k1, k2, k3 = st.columns(3)
+
 with k1:
     st.markdown(
         f"""
         <div class="{css_suhu}">
-            <b>Suhu Air</b><br>
-            Nilai: <b>{suhu_sensor} C</b><br>
+            <b>🌡️ Suhu Air</b><br>
+            Nilai: <b>{suhu_sensor:.1f} °C</b><br>
             Status: <b>{stat_suhu}</b><br>
-            Standar: 20C - 30C
+            <small>Standar: 20°C – 30°C</small>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
 with k2:
     st.markdown(
         f"""
         <div class="{css_tds}">
-            <b>TDS (Total Dissolved Solids)</b><br>
+            <b>🧪 TDS (Total Dissolved Solids)</b><br>
             Nilai: <b>{tds_sensor} ppm</b><br>
             Status: <b>{stat_tds}</b><br>
-            Standar: < 500 ppm (Air Bersih)
+            <small>Standar: &lt; 500 ppm (Air Bersih)</small>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
 with k3:
     st.markdown(
         f"""
-        <div class="kualitas-baik" style="background:#eaf3fb; color:#1a6fa8;">
-            <b>Estimasi Daya Listrik</b><br>
-            Total Daya: <b>{daya:.2f} W</b><br>
-            Lampu LED 10W: <b>{lampu} unit</b><br>
-            Debit: <b>{debit:.3f} m3/s</b>
+        <div class="{css_keseluruhan}">
+            <b>🏞️ Indeks Kualitas Air</b><br>
+            Kondisi: <b>{status_keseluruhan}</b><br>
+            <small>{deskripsi_keseluruhan}</small><br>
+            <small>Update: {datetime.now().strftime('%H:%M:%S')}</small>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
 st.markdown("---")
-st.markdown("### Grafik Historis Sensor (Simulasi 30 Menit Terakhir)")
-df_hist = buat_grafik_simulasi(30)
 
-tab1, tab2, tab3 = st.tabs(["Kecepatan Arus", "Suhu Air", "TDS"])
-with tab1:
-    fig_arus = px.line(
-        df_hist,
-        x="Waktu",
-        y="Arus",
-        title="Kecepatan Arus (m/s) - 30 Menit Terakhir",
-        color_discrete_sequence=["#1a6fa8"],
-    )
-    fig_arus.add_hline(
-        y=0.5, line_dash="dash", line_color="#f39c12", annotation_text="Batas Rendah"
-    )
-    fig_arus.add_hline(
-        y=1.5, line_dash="dash", line_color="#1e8449", annotation_text="Batas Tinggi"
-    )
-    fig_arus.update_layout(plot_bgcolor="white", height=350)
-    st.plotly_chart(fig_arus, use_container_width=True)
-with tab2:
-    fig_suhu = px.line(
-        df_hist,
-        x="Waktu",
-        y="Suhu",
-        title="Suhu Air (C) - 30 Menit Terakhir",
-        color_discrete_sequence=["#e74c3c"],
-    )
-    fig_suhu.add_hline(
-        y=20, line_dash="dash", line_color="#f39c12", annotation_text="Batas Bawah"
-    )
-    fig_suhu.add_hline(
-        y=30, line_dash="dash", line_color="#c0392b", annotation_text="Batas Atas"
-    )
-    fig_suhu.update_layout(plot_bgcolor="white", height=350)
-    st.plotly_chart(fig_suhu, use_container_width=True)
-with tab3:
-    fig_tds = px.bar(
-        df_hist,
-        x="Waktu",
-        y="TDS",
-        title="Nilai TDS (ppm) - 30 Menit Terakhir",
-        color_discrete_sequence=["#8e44ad"],
-    )
-    fig_tds.add_hline(
-        y=500, line_dash="dash", line_color="#f39c12", annotation_text="Batas Baik"
-    )
-    fig_tds.add_hline(
-        y=1000, line_dash="dash", line_color="#c0392b", annotation_text="Batas Buruk"
-    )
-    fig_tds.update_layout(plot_bgcolor="white", height=350)
-    st.plotly_chart(fig_tds, use_container_width=True)
+# ─── Rekomendasi ───────────────────────────────────────────────
+st.markdown("### 💡 Rekomendasi Tindakan")
+
+badge_html = f'<span class="{badge_keseluruhan}">{status_keseluruhan}</span>'
+rek_items = "".join(f"<li>{r}</li>" for r in rekomendasi_list)
+
+st.markdown(
+    f"""
+    <div class="rekomendasi-box">
+        <div class="rekomendasi-judul">Status Saat Ini: {badge_html}</div>
+        <ul style="margin:0; padding-left:18px;">
+            {rek_items}
+        </ul>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.markdown("---")
-st.caption("Dashboard IoT Monitoring Sungai | Dibuat dengan Python dan Streamlit")
+st.caption("💧 Dashboard IoT Monitoring Kualitas Air Sungai | Python & Streamlit")
