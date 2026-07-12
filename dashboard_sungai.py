@@ -20,8 +20,16 @@ def klasifikasi_tds(tds):
     return "Tercemar", "kualitas-buruk"
 
 
+def klasifikasi_ec(ec):
+    if ec < 750:
+        return "Baik", "kualitas-baik"
+    if ec <= 1500:
+        return "Sedang", "kualitas-sedang"
+    return "Buruk", "kualitas-buruk"
+
+
 # ─── Rekomendasi ───────────────────────────────────────────────
-def buat_rekomendasi(stat_suhu, stat_tds):
+def buat_rekomendasi(stat_suhu, stat_tds, stat_ec):
     rekomendasi = []
 
     if stat_suhu == "Terlalu Panas":
@@ -37,6 +45,13 @@ def buat_rekomendasi(stat_suhu, stat_tds):
         rekomendasi.append("⚠️ TDS melebihi batas aman. Gunakan filter air sebelum digunakan untuk konsumsi.")
     else:
         rekomendasi.append("✅ TDS dalam batas aman. Air layak digunakan dengan pengolahan standar.")
+
+    if stat_ec == "Buruk":
+        rekomendasi.append("Konduktivitas listrik sangat tinggi. Periksa kandungan garam, mineral, atau limbah terlarut.")
+    elif stat_ec == "Sedang":
+        rekomendasi.append("Konduktivitas listrik meningkat. Lakukan pemantauan dan pemeriksaan sumber zat terlarut.")
+    else:
+        rekomendasi.append("Konduktivitas listrik berada dalam kategori baik.")
 
     return rekomendasi
 
@@ -58,22 +73,23 @@ st.markdown(
 
         .main-title {
             font-size: 2.2rem; font-weight: 700;
-            color: #1a6fa8; text-align: center; margin-bottom: 4px;
+            color: #075e85; text-align: center; margin-bottom: 4px;
         }
         .sub-title {
-            font-size: 1rem; color: #888;
+            font-size: 1rem; color: #486581;
             text-align: center; margin-bottom: 24px;
         }
 
         /* Status card */
         .kualitas-baik   { background:#e8f8f5; color:#1e8449; border-radius:12px; padding:18px 20px; border-left:5px solid #1e8449; }
-        .kualitas-sedang { background:#fef9e7; color:#b7950b; border-radius:12px; padding:18px 20px; border-left:5px solid #d4ac0d; }
+        .kualitas-sedang { background:#fff8d6; color:#715500; border-radius:12px; padding:18px 20px; border-left:5px solid #b58b00; }
         .kualitas-buruk  { background:#fde8e8; color:#c0392b; border-radius:12px; padding:18px 20px; border-left:5px solid #c0392b; }
 
         /* Rekomendasi box */
         .rekomendasi-box {
-            background: #f4f8ff;
-            border: 1px solid #cce0ff;
+            background: #ffffff;
+            color: #102a43;
+            border: 1px solid #b8d4e3;
             border-radius: 12px;
             padding: 18px 22px;
             margin-bottom: 10px;
@@ -82,7 +98,7 @@ st.markdown(
         }
         .rekomendasi-judul {
             font-weight: 700; font-size: 1.05rem;
-            color: #1a6fa8; margin-bottom: 8px;
+            color: #075e85; margin-bottom: 8px;
         }
         .badge-baik   { display:inline-block; background:#1e8449; color:#fff; border-radius:20px; padding:2px 14px; font-size:0.85rem; font-weight:600; }
         .badge-sedang { display:inline-block; background:#d4ac0d; color:#fff; border-radius:20px; padding:2px 14px; font-size:0.85rem; font-weight:600; }
@@ -97,11 +113,14 @@ with st.sidebar:
     st.image("https://img.icons8.com/color/96/river.png", width=80)
     st.markdown("## 💧 Input Sensor")
     st.markdown("---")
-    suhu_sensor = st.slider(
+    suhu_sensor = st.number_input(
         "🌡️ Suhu Air (°C)", min_value=10.0, max_value=45.0, value=26.0, step=0.1
     )
     tds_sensor = st.number_input(
         "🧪 Nilai TDS (ppm)", min_value=0, max_value=5000, value=200, step=10
+    )
+    ec_sensor = st.number_input(
+        "Elektro Konduktivitas (µS/cm)", min_value=0, max_value=10000, value=400, step=10
     )
     st.markdown("---")
     st.caption(f"⏱️ Update: {datetime.now().strftime('%H:%M:%S')}")
@@ -109,13 +128,18 @@ with st.sidebar:
 # ─── Logika Status ─────────────────────────────────────────────
 stat_suhu, css_suhu = klasifikasi_suhu(suhu_sensor)
 stat_tds, css_tds = klasifikasi_tds(tds_sensor)
+stat_ec, css_ec = klasifikasi_ec(ec_sensor)
 
-if stat_suhu == "Normal" and stat_tds == "Bersih":
+if stat_suhu == "Normal" and stat_tds == "Bersih" and stat_ec == "Baik":
     status_keseluruhan = "BAIK"
     css_keseluruhan = "kualitas-baik"
     badge_keseluruhan = "badge-baik"
     deskripsi_keseluruhan = "Air aman dan berada dalam batas normal."
-elif stat_suhu == "Terlalu Panas" or stat_suhu == "Terlalu Dingin" or stat_tds == "Tercemar":
+elif (
+    stat_suhu in ("Terlalu Panas", "Terlalu Dingin")
+    or stat_tds == "Tercemar"
+    or stat_ec == "Buruk"
+):
     status_keseluruhan = "BURUK"
     css_keseluruhan = "kualitas-buruk"
     badge_keseluruhan = "badge-buruk"
@@ -126,7 +150,7 @@ else:
     badge_keseluruhan = "badge-sedang"
     deskripsi_keseluruhan = "Air cukup baik namun memerlukan pemantauan atau filtrasi."
 
-rekomendasi_list = buat_rekomendasi(stat_suhu, stat_tds)
+rekomendasi_list = buat_rekomendasi(stat_suhu, stat_tds, stat_ec)
 
 # ─── Header ────────────────────────────────────────────────────
 st.markdown(
@@ -140,16 +164,17 @@ st.markdown(
 
 # ─── Metrik Ringkasan ──────────────────────────────────────────
 st.markdown("### 📊 Ringkasan Sensor")
-m1, m2, m3 = st.columns(3)
+m1, m2, m3, m4 = st.columns(4)
 m1.metric("🌡️ Suhu Air", f"{suhu_sensor:.1f} °C", stat_suhu)
 m2.metric("🧪 TDS", f"{tds_sensor} ppm", stat_tds)
-m3.metric("🏞️ Status Kualitas Air", status_keseluruhan, deskripsi_keseluruhan)
+m3.metric("Elektro Konduktivitas", f"{ec_sensor} µS/cm", stat_ec)
+m4.metric("🏞️ Status Kualitas Air", status_keseluruhan, deskripsi_keseluruhan)
 
 st.markdown("---")
 
 # ─── Kartu Status Detail ───────────────────────────────────────
 st.markdown("### 🔍 Detail Status Kualitas Air")
-k1, k2, k3 = st.columns(3)
+k1, k2, k3, k4 = st.columns(4)
 
 with k1:
     st.markdown(
@@ -178,6 +203,19 @@ with k2:
     )
 
 with k3:
+    st.markdown(
+        f"""
+        <div class="{css_ec}">
+            <b>Elektro Konduktivitas (EC)</b><br>
+            Nilai: <b>{ec_sensor} µS/cm</b><br>
+            Status: <b>{stat_ec}</b><br>
+            <small>Baik: &lt; 750 µS/cm</small>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with k4:
     st.markdown(
         f"""
         <div class="{css_keseluruhan}">
